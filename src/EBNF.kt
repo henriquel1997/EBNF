@@ -1,7 +1,6 @@
-data class Rule(val lhs: LHS, val rhs: RHS)
-data class LHS(val identifier: Identifier)
+data class Rule(val lhs: Identifier, val rhs: RHS)
 abstract class RHS
-data class Terminal(val name: String): RHS()
+data class Terminal(val letter: Char): RHS()
 data class Identifier(val name: String) : RHS()
 data class Loop(val item: RHS) : RHS()
 data class Or(val left: RHS, val right: RHS) : RHS()
@@ -39,27 +38,19 @@ fun checkTerminal(s: String) : Terminal? {
     if(s[0] == '\'' && s[s.length - 1] == '\'' ||
         s[0] == '"' && s[s.length - 1] == '"'){
         val terminal = s.dropLast(1).drop(1)
-        if(isCharacter(terminal[0])){
-            if(terminal.length > 1) {
-                for (i in 1 until terminal.length) {
-                    if (!isCharacter(terminal[i])) {
-                        return null
-                    }
-                }
-            }
-
-            return Terminal(terminal)
+        if(terminal.length == 1 && isCharacter(terminal[0])){
+            return Terminal(terminal[0])
         }
     }
 
     return null
 }
 
-fun checkLHS(s: String) : LHS? {
+fun checkLHS(s: String) : Identifier? {
     val identifier =  checkIdentifier(s)
 
     if(identifier != null){
-        return LHS(identifier)
+        return identifier
     }
 
     return null
@@ -94,9 +85,12 @@ fun checkRHS(s: String) : RHS? {
             }
         }
 
-        /**Checa se é um Ou**/
-        var split = s.split('|', limit = 2)
-        if(split.size == 2){
+        val firstOrPos = s.indexOfFirst { it == '|' }
+        val firstConcatPos = s.indexOfFirst { it == ',' }
+
+        if(firstOrPos >= 0 && (firstOrPos < firstConcatPos || firstConcatPos < 0)){
+            /**Checa se é um Ou**/
+            val split = s.split('|', limit = 2)
             val left = checkRHS(split[0])
             if(left != null){
                 val right = checkRHS(split[1])
@@ -104,10 +98,9 @@ fun checkRHS(s: String) : RHS? {
                     return Or(left, right)
                 }
             }
-        } else {
-
+        }else if(firstConcatPos >= 0){
             /**Checa se é uma Concatenação**/
-            split = s.split(',', limit = 2)
+            val split = s.split(',', limit = 2)
             if(split.size == 2){
                 val left = checkRHS(split[0])
                 if(left != null){

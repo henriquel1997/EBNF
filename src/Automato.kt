@@ -19,14 +19,19 @@ data class Automato (val inicio: Estado = Estado()){
     }
 
     fun getEstadosFinais() : MutableList<Estado> {
-        val finais = mutableListOf(inicio)
+        val naoVisitados = mutableListOf(inicio)
+        val finais = mutableListOf<Estado>()
 
         var cont = 0
-        while(cont < finais.size){
-            val estado = finais[cont]
+        while(cont < naoVisitados.size){
+            val estado = naoVisitados[cont]
+            if(estado.isFinal()){
+                finais.add(estado)
+            }
+
             for(par in estado.proximos){
-                if(par.second.isFinal() && !finais.contains(par.second)){
-                    finais.add(par.second)
+                if(!naoVisitados.contains(par.second)){
+                    naoVisitados.add(par.second)
                 }
             }
 
@@ -37,7 +42,7 @@ data class Automato (val inicio: Estado = Estado()){
     }
 }
 
-data class Estado (val proximos: MutableList<Pair<String?, Estado>> = mutableListOf(), private val id:Int = getIndex()){
+data class Estado (val proximos: MutableList<Pair<Char?, Estado>> = mutableListOf(), val id:Int = getIndex()){
 
 
     fun isFinal() = proximos.isEmpty()
@@ -47,22 +52,43 @@ data class Estado (val proximos: MutableList<Pair<String?, Estado>> = mutableLis
         fun getIndex() = cont++
     }
 
-    fun estadoMaisProximoCom(string: String, visitados: MutableList<Estado> = mutableListOf()): Estado?{
-        for(par in proximos){
-            val stringPar = par.first
-            val estado = par.second
-            if(stringPar == null){
-                if(estado !in visitados){
-                    val maisProximo = estado.estadoMaisProximoCom(string, visitados)
-                    if(maisProximo != null){
-                        return maisProximo
+    fun estadosAlcancaveis() : MutableList<Estado>{
+        val estados = mutableListOf(this)
+
+        var index = 0
+        while(index < estados.size){
+            val estado = estados[index]
+            for(par in estado.proximos){
+                val alcancavel = (par.first == null)
+                if(alcancavel){
+                    var naoFoiVisitado = true
+                    for(e in estados){
+                        if(e.id == par.second.id){
+                            naoFoiVisitado = false
+                            break
+                        }
+                    }
+                    if(naoFoiVisitado){
+                        estados.add(par.second)
                     }
                 }
-            }else if(stringPar == string){
-                return estado
             }
+
+            index++
         }
 
+        return estados
+    }
+
+    fun estadoMaisProximoCom(char: Char): Estado?{
+        val alcancaveis = estadosAlcancaveis()
+        for(estado in alcancaveis){
+            for(par in estado.proximos){
+                if(par.first == char){
+                    return par.second
+                }
+            }
+        }
         return null
     }
 
@@ -77,6 +103,8 @@ data class Estado (val proximos: MutableList<Pair<String?, Estado>> = mutableLis
     }
 }
 
+data class TabelaTransicao(val map: HashMap<Pair<Int, Char>, Int>, val finais: List<Int>)
+
 fun convertRHSToAutomato(rhs: RHS) : Automato {
     return when(rhs){
         is Identifier -> {
@@ -84,7 +112,7 @@ fun convertRHSToAutomato(rhs: RHS) : Automato {
         }
 
         is Terminal -> {
-            Automato(Estado(mutableListOf(Pair(rhs.name, Estado()))))
+            Automato(Estado(mutableListOf(Pair(rhs.letter, Estado()))))
         }
 
         is Loop -> {
@@ -156,29 +184,60 @@ fun convertConcatToAutomato(concat: Concat) : Automato {
     return Automato(automatoLeft.inicio)
 }
 
-fun convertNFAtoDFA(automato: Automato) : HashMap<Pair<Int, String>, Int> {
+fun convertENFAtoDFA(automato: Automato) : TabelaTransicao {
+
     val estados = automato.getEstados()
-    val alfabeto = mutableListOf<String>()
+    val alfabeto = mutableListOf<Char>()
 
     for(estado in estados){
         for(par in estado.proximos){
-            val s = par.first
-            if(s != null && !alfabeto.contains(s)){
-                alfabeto.add(s)
+            val c = par.first
+            if(c != null && !alfabeto.contains(c)){
+                alfabeto.add(c)
             }
         }
     }
 
-    val map: HashMap<Pair<Int, String>, Int> = hashMapOf()
+    val map: HashMap<Pair<Int, Char>, Int> = hashMapOf()
 
     for(index in 0 until estados.size){
         val estado = estados[index]
-        for(string in alfabeto){
-            val estadoMaisProximo = estado.estadoMaisProximoCom(string)
+        for(char in alfabeto){
+            val estadoMaisProximo = estado.estadoMaisProximoCom(char)
             val indexProximo = estados.indexOf(estadoMaisProximo)
-            map[Pair(index, string)] = indexProximo
+            map[Pair(index, char)] = indexProximo
         }
     }
 
-    return map
+    val finais = mutableListOf<Int>()
+    val finaisAutomato = automato.getEstadosFinais()
+
+    for(index in 0 until estados.size){
+        val estado = estados[index]
+        for(e in estado.estadosAlcancaveis()){
+            if(finaisAutomato.contains(e)){
+                finais.add(index)
+                break
+            }
+        }
+    }
+
+    return TabelaTransicao(map, finais)
+}
+
+fun executaTabelaTransicao(string: String, tabelaTransicao: TabelaTransicao) : Boolean{
+    var estado: Int? = 0
+    var reconheceu = true
+    for(i in 0 until string.length){
+        val letra = string[i]
+        estado = tabelaTransicao.map[Pair(estado, letra)]
+
+        if(estado == null || estado == -1){
+            reconheceu = false
+            break
+        }
+
+    }
+
+    return reconheceu && tabelaTransicao.finais.contains(estado)
 }
