@@ -1,3 +1,5 @@
+import java.util.*
+
 data class Rule(val lhs: Identifier, val rhs: RHS)
 abstract class RHS
 data class Terminal(val letter: Char): RHS()
@@ -85,35 +87,56 @@ fun checkRHS(s: String) : RHS? {
             }
         }
 
-        val firstOrPos = s.indexOfFirst { it == '|' }
-        val firstConcatPos = s.indexOfFirst { it == ',' }
+        val firstOrPos = indexOfFirst(s, '|', Pair('(', ')'), Pair('{', '}'))
+        val firstConcatPos = indexOfFirst(s, ',', Pair('(', ')'), Pair('{', '}'))
 
         if(firstOrPos >= 0 && (firstOrPos < firstConcatPos || firstConcatPos < 0)){
             /**Checa se é um Ou**/
-            val split = s.split('|', limit = 2)
-            val left = checkRHS(split[0])
+            val left = checkRHS(s.substring(0, firstOrPos))
             if(left != null){
-                val right = checkRHS(split[1])
+                val right = checkRHS(s.substring(firstOrPos + 1))
                 if(right != null){
                     return Or(left, right)
                 }
             }
         }else if(firstConcatPos >= 0){
             /**Checa se é uma Concatenação**/
-            val split = s.split(',', limit = 2)
-            if(split.size == 2){
-                val left = checkRHS(split[0])
-                if(left != null){
-                    val right = checkRHS(split[1])
-                    if(right != null){
-                        return Concat(left, right)
-                    }
+            val left = checkRHS(s.substring(0, firstConcatPos))
+            if(left != null){
+                val right = checkRHS(s.substring(firstConcatPos + 1))
+                if(right != null){
+                    return Concat(left, right)
                 }
             }
         }
     }
 
     return null
+}
+
+fun indexOfFirst(string: String, char: Char, vararg groupIgnore: Pair<Char, Char>) : Int {
+
+    val map = hashMapOf<Char, Char>()
+
+    for(par in groupIgnore){
+        map[par.first] = par.second
+    }
+
+    val pilha = Stack<Char>()
+
+    for(index in 0 until string.length) {
+        val charAtual = string[index]
+
+        if (pilha.isEmpty() && charAtual == char) {
+            return index
+        } else if (map.containsKey(charAtual)) {
+            pilha.push(charAtual)
+        } else if (pilha.isNotEmpty() && charAtual == map[pilha.peek()]) {
+            pilha.pop()
+        }
+    }
+
+    return -1
 }
 
 fun checkRule(s: String) : Rule? {

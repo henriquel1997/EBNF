@@ -52,37 +52,29 @@ data class Estado (val proximos: MutableList<Pair<Char?, Estado>> = mutableListO
         fun getIndex() = cont++
     }
 
-    fun estadosAlcancaveis() : MutableList<Estado>{
+    fun eClosure() : MutableList<Estado>{
         val estados = mutableListOf(this)
 
         var index = 0
         while(index < estados.size){
             val estado = estados[index]
             for(par in estado.proximos){
-                val alcancavel = (par.first == null)
-                if(alcancavel){
-                    var naoFoiVisitado = true
-                    for(e in estados){
-                        if(e.id == par.second.id){
-                            naoFoiVisitado = false
-                            break
-                        }
-                    }
-                    if(naoFoiVisitado){
-                        estados.add(par.second)
-                    }
+                if(par.first == null && !estados.contains(par.second)){
+                    estados.add(par.second)
                 }
             }
 
             index++
         }
 
+        estados.sortBy { it.id }
+
         return estados
     }
 
     fun estadoMaisProximoCom(char: Char): Estado?{
-        val alcancaveis = estadosAlcancaveis()
-        for(estado in alcancaveis){
+        val eclosure = eClosure()
+        for(estado in eclosure){
             for(par in estado.proximos){
                 if(par.first == char){
                     return par.second
@@ -199,24 +191,92 @@ fun convertENFAtoDFA(automato: Automato) : TabelaTransicao {
     }
 
     val map: HashMap<Pair<Int, Char>, Int> = hashMapOf()
+    val closures = mutableListOf(estados[0].eClosure())
 
-    for(index in 0 until estados.size){
-        val estado = estados[index]
-        for(char in alfabeto){
-            val estadoMaisProximo = estado.estadoMaisProximoCom(char)
-            val indexProximo = estados.indexOf(estadoMaisProximo)
-            map[Pair(index, char)] = indexProximo
+    val getIndexClosure = check@{ novaClosure: MutableList<Estado> ->
+        for(indexClosure in 0 until closures.size){
+            val closure = closures[indexClosure]
+
+            if(closure.size == novaClosure.size){
+                var igual = true
+                for(index in 0 until closure.size){
+                    if(closure[index].id != novaClosure[index].id){
+                        igual = false
+                        break
+                    }
+                }
+
+                if(igual){
+                    return@check indexClosure
+                }
+            }
+
         }
+
+        return@check -1
     }
+
+    var index = 0
+    while(index < closures.size){
+        val closure = closures[index]
+
+        for(char in alfabeto){
+            val estadosParaClosure = mutableListOf<Estado>()
+            for(estado in closure){
+                for(prox in estado.proximos){
+                    if(prox.first == char && !estadosParaClosure.contains(prox.second)){
+                        estadosParaClosure.add(prox.second)
+                    }
+                }
+            }
+
+            val novaClosure = mutableListOf<Estado>()
+
+            for(estado in estadosParaClosure){
+                for(estadoClosure in estado.eClosure()){
+                    if(!novaClosure.contains(estadoClosure)){
+                        novaClosure.add(estadoClosure)
+                    }
+                }
+            }
+
+            map[Pair(index, char)] = if(novaClosure.isNotEmpty()) {
+
+                novaClosure.sortBy { it.id }
+
+                val id = getIndexClosure(novaClosure)
+                if(id < 0) {
+                    closures.add(novaClosure)
+                    closures.size - 1
+                } else {
+                    id
+                }
+            } else {
+                -1
+            }
+        }
+
+        index++
+    }
+
+
+//    for(index in 0 until estados.size){
+//        val estado = estados[index]
+//        for(char in alfabeto){
+//            val estadoMaisProximo = estado.estadoMaisProximoCom(char)
+//            val indexProximo = estados.indexOf(estadoMaisProximo)
+//            map[Pair(index, char)] = indexProximo
+//        }
+//    }
 
     val finais = mutableListOf<Int>()
     val finaisAutomato = automato.getEstadosFinais()
 
-    for(index in 0 until estados.size){
-        val estado = estados[index]
-        for(e in estado.estadosAlcancaveis()){
-            if(finaisAutomato.contains(e)){
-                finais.add(index)
+    for(i in 0 until closures.size){
+        val closure = closures[i]
+        for(estado in closure){
+            if(finaisAutomato.contains(estado)){
+                finais.add(i)
                 break
             }
         }
