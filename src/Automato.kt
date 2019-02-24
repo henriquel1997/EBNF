@@ -72,18 +72,6 @@ data class Estado (val proximos: MutableList<Pair<Char?, Estado>> = mutableListO
         return estados
     }
 
-    fun estadoMaisProximoCom(char: Char): Estado?{
-        val eclosure = eClosure()
-        for(estado in eclosure){
-            for(par in estado.proximos){
-                if(par.first == char){
-                    return par.second
-                }
-            }
-        }
-        return null
-    }
-
     override fun equals(other: Any?): Boolean {
         return other is Estado && other.id == id
     }
@@ -258,16 +246,6 @@ fun convertENFAtoDFA(automato: Automato) : TabelaTransicao {
 
         index++
     }
-
-
-//    for(index in 0 until estados.size){
-//        val estado = estados[index]
-//        for(char in alfabeto){
-//            val estadoMaisProximo = estado.estadoMaisProximoCom(char)
-//            val indexProximo = estados.indexOf(estadoMaisProximo)
-//            map[Pair(index, char)] = indexProximo
-//        }
-//    }
 
     val finais = mutableListOf<Int>()
     val finaisAutomato = automato.getEstadosFinais()

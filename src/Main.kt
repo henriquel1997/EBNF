@@ -6,7 +6,7 @@ fun main() {
     if(rule != null){
         val automato = convertRHSToAutomato(rule.rhs)
         val tabela = convertENFAtoDFA(automato)
-        val string = "ABABABABAB"
+        val string = "ABABABABA"
 
         println("String $string reconhecida: "+ executaTabelaTransicao(string, tabela))
     }
